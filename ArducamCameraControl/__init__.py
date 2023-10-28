@@ -23,10 +23,13 @@ class ArducamcameracontrolPlugin(octoprint.plugin.SettingsPlugin,
                                  octoprint.plugin.StartupPlugin,
                                  octoprint.plugin.SimpleApiPlugin,
                                  ):
+    def __init__(self):
+        self.time = time.time()
 
     def on_after_startup(self):
         global ID
         ID = self.inquire()
+        self._logger.info("on_after_startup(): inquire() returned {ID}".format(**globals()))
         if ID == '0':
             ID = '10'
         else:
@@ -51,7 +54,7 @@ class ArducamcameracontrolPlugin(octoprint.plugin.SettingsPlugin,
                 while write_attempts:
                     try:
                         self.bus.write_i2c_block_data(0xc, 0x00, databuf)
-                    except IOError:
+                    except OSError:
                         write_attempts -= 1
                     else:
                         break
@@ -63,6 +66,7 @@ class ArducamcameracontrolPlugin(octoprint.plugin.SettingsPlugin,
                     self._identifier, dict(error="unable to use SMBus/I2C"))
 
     def ptz_focus(self, f):
+        self._logger.info("ptz_focus(): ID={ID}".format(**globals()))
         if ID == '1':
             databuf = [0xff, 0xff]
             databuf[0] = (f >> 8) & 0xff
@@ -76,7 +80,7 @@ class ArducamcameracontrolPlugin(octoprint.plugin.SettingsPlugin,
                     while write_attempts:
                         try:
                             self.bus.write_i2c_block_data(0xc, 0x01, databuf)
-                        except IOError:
+                        except OSError:
                             write_attempts -= 1
                         else:
                             break
@@ -102,8 +106,9 @@ class ArducamcameracontrolPlugin(octoprint.plugin.SettingsPlugin,
                 write_attempts = 10
                 while write_attempts:
                     try:
+                        self._logger.info("ptz_focus(): data1={data1} data2={data2}".format(**locals()))
                         self.bus.write_byte_data(0xc, data1, data2)
-                    except IOError:
+                    except OSError:
                         write_attempts -= 1
                     else:
                         break
@@ -127,7 +132,7 @@ class ArducamcameracontrolPlugin(octoprint.plugin.SettingsPlugin,
             while write_attempts:
                 try:
                     self.bus.write_i2c_block_data(0xc, 0x05, databuf)
-                except IOError:
+                except OSError:
                     write_attempts -= 1
                 else:
                     break
@@ -147,7 +152,7 @@ class ArducamcameracontrolPlugin(octoprint.plugin.SettingsPlugin,
             while write_attempts:
                 try:
                     self.bus.write_i2c_block_data(0xc, 0x06, databuf)
-                except IOError:
+                except OSError:
                     write_attempts -= 1
                 else:
                     break
@@ -167,7 +172,7 @@ class ArducamcameracontrolPlugin(octoprint.plugin.SettingsPlugin,
             while write_attempts:
                 try:
                     self.bus.write_i2c_block_data(0xc, 0x0c, databuf)
-                except IOError:
+                except OSError:
                     write_attempts -= 1
                 else:
                     break
@@ -182,20 +187,17 @@ class ArducamcameracontrolPlugin(octoprint.plugin.SettingsPlugin,
         cmd = "find /dev/i2c* | awk -F '-' '{print $NF}'"
         IP = subprocess.check_output(cmd, shell=True).decode('utf-8')
         IP = IP.split('\n')
-        i2c0flag = 0
-        i2c1flag = 0
-        cmd = "i2cdetect -y 1 | awk 'NR==2 {print $11}'"
+        cmd = "i2cdetect -y 1 | awk 'NR==2 {print $6}'"
         data = subprocess.check_output(cmd, shell=True).decode('utf-8')
         if data == "0c\n":
             return '1'
         for num in IP:
             if num in ['0', '10']:
-                cmd = "i2cdetect -y %s | awk 'NR==2 {print $11}'" % num
+                cmd = "i2cdetect -y %s | awk 'NR==2 {print $6}'" % num
                 data = subprocess.check_output(cmd, shell=True).decode('utf-8')
                 if data == "0c\n":
                     return '0'
-        if i2c0flag == 0 and i2c1flag == 0:
-            return '2'
+        return '2'
 
     def get_focus(self):
         return str(self._settings.get(["focus_level"]))
